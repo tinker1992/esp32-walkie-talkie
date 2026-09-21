@@ -18,7 +18,15 @@ void receiveCallback(const uint8_t *macAddr, const uint8_t *data, int dataLen)
   // first m_header_size bytes of m_buffer are the expected header
   if ((dataLen > header_size) && (dataLen<=MAX_ESP_NOW_PACKET_SIZE) && (memcmp(data,instance->m_buffer,header_size) == 0)) 
   {
-    instance->m_output_buffer->add_samples(data + header_size, dataLen - header_size);
+    if (instance->m_frame_rx)
+    {
+      // Opus path: hand the whole payload (minus header) to the frame receiver
+      instance->m_frame_rx(data + header_size, dataLen - header_size, instance->m_frame_rx_ctx);
+    }
+    else
+    {
+      instance->m_output_buffer->add_samples(data + header_size, dataLen - header_size);
+    }
   }
 }
 

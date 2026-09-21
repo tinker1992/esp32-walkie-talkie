@@ -77,6 +77,14 @@
 // On which wifi channel (1-11) should ESP-Now transmit? The default ESP-Now channel on ESP32 is channel 1
 #define ESP_NOW_WIFI_CHANNEL 1
 
+// Opus codec settings (only used when USE_OPUS_CODEC is defined)
+// 20 ms frames at 16 kHz -> 320 samples/frame. ~24 kbps mono VBR is a good
+// voice quality/bandwidth trade-off and keeps each packet well under the
+// 250-byte ESP-NOW limit.
+#define OPUS_FRAME_MS 20
+#define OPUS_BITRATE 24000
+#define OPUS_COMPLEXITY 5
+
 // In case all transport packets need a header (to avoid interference with other applications or walkie talkie sets), 
 // specify TRANSPORT_HEADER_SIZE (the length in bytes of the header) in the next line, and define the transport header in config.cpp
 #define TRANSPORT_HEADER_SIZE 0

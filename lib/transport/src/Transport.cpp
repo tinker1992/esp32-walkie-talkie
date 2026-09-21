@@ -22,6 +22,24 @@ void Transport::add_sample(int16_t sample)
   }
 }
 
+int Transport::add_frame(const uint8_t *payload, size_t len)
+{
+  // keep room for the header and stay within the transport packet buffer
+  if ((int)(len + m_header_size) > m_buffer_size)
+    return -1;
+  memcpy(m_buffer + m_header_size, payload, len);
+  m_index = (int)len;
+  send();
+  m_index = 0;
+  return 0;
+}
+
+void Transport::set_frame_receiver(frame_rx_fn fn, void *ctx)
+{
+  m_frame_rx = fn;
+  m_frame_rx_ctx = ctx;
+}
+
 void Transport::flush()
 {
   if (m_index >0 )

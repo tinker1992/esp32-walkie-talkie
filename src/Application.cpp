@@ -12,6 +12,11 @@
 #include "OutputBuffer.h"
 #include "config.h"
 
+#ifdef USE_OPUS_CODEC
+#include "Transport.h"
+#include "OpusStream.h"
+#endif
+
 #ifdef ARDUINO_TINYPICO
 #include "TinyPICOIndicatorLed.h"
 #else
@@ -25,9 +30,27 @@ static void application_task(void *param)
   application->loop();
 }
 
+#ifdef USE_OPUS_CODEC
+// Opus packet -> transport frame (one Opus packet per ESP-NOW/UDP datagram)
+static void opus_tx_sender(const uint8_t *packet, int len, void *ctx)
+{
+  reinterpret_cast<Transport *>(ctx)->add_frame(packet, len);
+}
+// received frame -> Opus decode ring (called from the radio callback)
+static void opus_rx_frame(const uint8_t *data, int len, void *ctx)
+{
+  reinterpret_cast<OpusStream *>(ctx)->enqueue_encoded(data, len);
+}
+#endif
+
 Application::Application()
 {
+#ifdef USE_OPUS_CODEC
+  m_output_buffer = NULL; // unused on the Opus path
+  m_opus = new OpusStream(SAMPLE_RATE, OPUS_FRAME_MS, OPUS_BITRATE, OPUS_COMPLEXITY);
+#else
   m_output_buffer = new OutputBuffer(300 * 16);
+#endif
 #ifdef USE_I2S_MIC_INPUT
   m_input = new I2SMEMSSampler(MIC_I2S_PORT, i2s_mic_pins, i2s_mic_Config,128);
 #else
@@ -47,6 +70,12 @@ Application::Application()
 #endif
 
   m_transport->set_header(TRANSPORT_HEADER_SIZE,transport_header);
+
+#ifdef USE_OPUS_CODEC
+  // route decoded Opus frames straight through the transport
+  m_transport->set_frame_receiver(opus_rx_frame, m_opus);
+  m_opus->set_sender(opus_tx_sender, m_transport);
+#endif
 
 #ifdef ARDUINO_TINYPICO
   m_indicator_led = new TinyPICOIndicatorLed();
@@ -99,11 +128,23 @@ void Application::begin()
   pinMode(GPIO_TRANSMIT_BUTTON, INPUT_PULLDOWN);
   // start off with i2S output running
   m_output->start(SAMPLE_RATE);
+#ifdef USE_OPUS_CODEC
+  if (!m_opus->begin())
+  {
+    Serial.println("Opus codec failed to initialise");
+  }
+#else
   // flush all samples received during startup
   m_output_buffer->flush();
-  // start the main task for the application
+#endif
+  // start the main task for the application (bigger stack for Opus decode)
   TaskHandle_t task_handle;
-  xTaskCreate(application_task, "application_task", 8192, this, 1, &task_handle);
+#ifdef USE_OPUS_CODEC
+  const uint32_t task_stack = 24576;
+#else
+  const uint32_t task_stack = 8192;
+#endif
+  xTaskCreate(application_task, "application_task", task_stack, this, 1, &task_handle);
 }
 
 // application task - coordinates everything
@@ -128,14 +169,24 @@ void Application::loop()
       {
         // read samples from the microphone
         int samples_read = m_input->read(samples, 128);
+#ifdef USE_OPUS_CODEC
+        // accumulate into Opus frames and transmit each encoded packet
+        m_opus->write_pcm(samples, samples_read);
+#else
         // and send them over the transport
         for (int i = 0; i < samples_read; i++)
         {
           m_transport->add_sample(samples[i]);
         }
+#endif
       }
+#ifdef USE_OPUS_CODEC
+      // pad + send the trailing partial frame
+      m_opus->flush();
+#else
       // send all packets still in the transport buffer
       m_transport->flush();
+#endif
       // finished transmitting stop the input and start the output
       Serial.println("Finished transmitting");
       m_indicator_led->set_is_flashing(false, 0xff0000);
@@ -151,8 +202,13 @@ void Application::loop()
     unsigned long start_time = millis();
     while (millis() - start_time < 1000 || !digitalRead(GPIO_TRANSMIT_BUTTON))
     {
+#ifdef USE_OPUS_CODEC
+      // decode queued Opus packets (as needed) into the speaker buffer
+      m_opus->read_pcm(samples, 128);
+#else
       // read from the output buffer (which should be getting filled by the transport)
       m_output_buffer->remove_samples(samples, 128);
+#endif
       // and send the samples to the speaker
       m_output->write(samples, 128);
     }

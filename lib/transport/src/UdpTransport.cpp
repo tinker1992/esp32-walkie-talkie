@@ -22,7 +22,14 @@ bool UdpTransport::begin()
                     // so we can push them straight into the output buffer
                     if ((packet.length() > this->m_header_size) && (packet.length() <= MAX_UDP_SIZE) && (memcmp(packet.data(), this->m_buffer, this->m_header_size) == 0)) 
                     {
-                      this->m_output_buffer->add_samples(packet.data() + m_header_size, packet.length() - m_header_size);
+                      if (this->m_frame_rx)
+                      {
+                        this->m_frame_rx(packet.data() + m_header_size, packet.length() - m_header_size, this->m_frame_rx_ctx);
+                      }
+                      else
+                      {
+                        this->m_output_buffer->add_samples(packet.data() + m_header_size, packet.length() - m_header_size);
+                      }
                     }
                   });
     return true;
