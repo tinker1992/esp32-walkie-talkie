@@ -17,6 +17,12 @@
 #include "OpusStream.h"
 #endif
 
+#ifdef USE_OLED_DISPLAY
+#include "WalkieDisplay.h"
+#include "RotaryEncoder.h"
+#include <string.h>
+#endif
+
 #ifdef ARDUINO_TINYPICO
 #include "TinyPICOIndicatorLed.h"
 #else
@@ -75,6 +81,13 @@ Application::Application()
   // route decoded Opus frames straight through the transport
   m_transport->set_frame_receiver(opus_rx_frame, m_opus);
   m_opus->set_sender(opus_tx_sender, m_transport);
+#endif
+
+#ifdef USE_OLED_DISPLAY
+  m_display = new WalkieDisplay();
+  m_encoder = new RotaryEncoder();
+  m_ui_mac[0] = '\0';
+  m_ui_level = 0;
 #endif
 
 #ifdef ARDUINO_TINYPICO
@@ -137,6 +150,20 @@ void Application::begin()
   // flush all samples received during startup
   m_output_buffer->flush();
 #endif
+
+#ifdef USE_OLED_DISPLAY
+  m_encoder->begin(ENC_PIN_A, ENC_PIN_B);
+  analogSetPinAttenuation(BATT_ADC_PIN, ADC_11db);
+  {
+    String mac = WiFi.macAddress(); // "AA:BB:CC:DD:EE:FF"
+    int n = mac.length();
+    if (n >= 8)
+      strncpy(m_ui_mac, mac.c_str() + (n - 8), 8); // keep "DD:EE:FF"
+    m_ui_mac[8] = '\0';
+  }
+  m_display->begin(OLED_I2C_SDA, OLED_I2C_SCL, OLED_I2C_ADDR);
+#endif
+
   // start the main task for the application (bigger stack for Opus decode)
   TaskHandle_t task_handle;
 #ifdef USE_OPUS_CODEC
@@ -179,6 +206,9 @@ void Application::loop()
           m_transport->add_sample(samples[i]);
         }
 #endif
+#ifdef USE_OLED_DISPLAY
+        ui_service(true, start_time, samples, samples_read);
+#endif
       }
 #ifdef USE_OPUS_CODEC
       // pad + send the trailing partial frame
@@ -211,6 +241,9 @@ void Application::loop()
 #endif
       // and send the samples to the speaker
       m_output->write(samples, 128);
+#ifdef USE_OLED_DISPLAY
+      ui_service(false, 0, samples, 128);
+#endif
     }
     if (I2S_SPEAKER_SD_PIN != -1)
     {
@@ -219,3 +252,68 @@ void Application::loop()
     Serial.println("Finished Receiving");
   }
 }
+
+#ifdef USE_OLED_DISPLAY
+static int peak_level(const int16_t *s, int n)
+{
+  long peak = 0;
+  for (int i = 0; i < n; i++)
+  {
+    long v = s[i] < 0 ? -s[i] : s[i];
+    if (v > peak)
+      peak = v;
+  }
+  int lvl = (int)(peak * 8 / 12000); // ~12000 counts ≈ full-scale voice
+  if (lvl < 0) lvl = 0;
+  if (lvl > 8) lvl = 8;
+  return lvl;
+}
+
+void Application::ui_service(bool transmitting, uint32_t tx_start_ms, const int16_t *samples, int count)
+{
+  if (!m_display)
+    return;
+
+  // poll the encoder on every call (cheap), redraw the OLED at ~10 Hz
+  int d = m_encoder->read();
+  if (d > 0)
+    m_display->nextPage();
+  else if (d < 0)
+    m_display->prevPage();
+
+  int lvl = peak_level(samples, count);
+  m_ui_level = (m_ui_level + lvl) / 2; // light smoothing
+
+  static uint32_t last_render = 0;
+  uint32_t now = millis();
+  if (now - last_render < 100)
+    return;
+  last_render = now;
+
+  DisplayModel m;
+  m.transmitting = transmitting;
+  m.rx_active = !transmitting && m_ui_level > 0;
+  m.level = m_ui_level;
+  m.tx_seconds = transmitting ? (now - tx_start_ms) / 1000 : 0;
+  m.callsign = WALKIE_CALLSIGN;
+  m.channel = ESP_NOW_WIFI_CHANNEL;
+  m.encrypted = false;
+#ifdef USE_ESP_NOW_LMK
+  m.encrypted = true;
+#endif
+#ifdef USE_OPUS_CODEC
+  m.codec = OPUS_LABEL;
+#else
+  m.codec = "PCM 8bit";
+#endif
+  m.mac = m_ui_mac;
+
+  int mv = (int)(analogReadMilliVolts(BATT_ADC_PIN) * BATT_DIVIDER);
+  int pct = (mv - BATT_MV_EMPTY) * 100 / (BATT_MV_FULL - BATT_MV_EMPTY);
+  if (pct < 0) pct = 0;
+  if (pct > 100) pct = 100;
+  m.battery_pct = pct;
+
+  m_display->render(m);
+}
+#endif

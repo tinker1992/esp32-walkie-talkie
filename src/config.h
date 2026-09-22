@@ -1,3 +1,4 @@
+#include <sdkconfig.h>
 #include <freertos/FreeRTOS.h>
 #include <driver/i2s.h>
 #include <driver/gpio.h>
@@ -52,6 +53,19 @@
 #define I2S_SPEAKER_SD_PIN -1
 // transmit (push-to-talk) button
 #define GPIO_TRANSMIT_BUTTON 1
+
+// --- ESP32-S3 add-on pins: SSD1306 (I2C) + rotary encoder + battery ADC ---
+// These are only used when USE_OLED_DISPLAY is defined ([env:esp32s3] only).
+#define OLED_I2C_SDA GPIO_NUM_8
+#define OLED_I2C_SCL GPIO_NUM_9
+#define OLED_I2C_ADDR 0x3C
+#define ENC_PIN_A 12        // rotary encoder phase A
+#define ENC_PIN_B 14        // rotary encoder phase B
+#define ENC_PIN_SW 13       // encoder push button (optional action)
+#define BATT_ADC_PIN GPIO_NUM_10   // battery via resistor divider -> ADC1
+#define BATT_DIVIDER 2.0f   // battery_mv = adc_mv * divider
+#define BATT_MV_EMPTY 3300  // LiPo ~0%
+#define BATT_MV_FULL 4200   // LiPo ~100%
 #else
 // --- Classic ESP32: original pinout ---
 #define I2S_MIC_SERIAL_CLOCK GPIO_NUM_18
@@ -94,6 +108,12 @@
 #define OPUS_FRAME_MS 20
 #define OPUS_BITRATE 24000
 #define OPUS_COMPLEXITY 5
+
+// Human-readable label shown on the OLED when the codec is active
+#define OPUS_LABEL "OPUS 16k/20ms"
+
+// Callsign / group name shown on the display (change to yours)
+#define WALKIE_CALLSIGN "ALPHA"
 
 // In case all transport packets need a header (to avoid interference with other applications or walkie talkie sets), 
 // specify TRANSPORT_HEADER_SIZE (the length in bytes of the header) in the next line, and define the transport header in config.cpp
