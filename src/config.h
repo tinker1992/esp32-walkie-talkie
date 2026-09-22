@@ -77,6 +77,16 @@
 // On which wifi channel (1-11) should ESP-Now transmit? The default ESP-Now channel on ESP32 is channel 1
 #define ESP_NOW_WIFI_CHANNEL 1
 
+// ESP-NOW link-layer encryption (AES-128) via a pre-shared Local Master Key.
+// Every walkie-talkie in the same group MUST use the identical 16-byte LMK or
+// they will not be able to read each other. CHANGE this default key for your
+// own build; to go back to plaintext, comment out USE_ESP_NOW_LMK.
+#define USE_ESP_NOW_LMK
+#define ESP_NOW_LMK                    \
+  0xE3, 0x0A, 0x7C, 0x51, 0x9B, 0x24,  \
+  0x6D, 0xF8, 0x11, 0xA0, 0x3E, 0xC5,  \
+  0x77, 0x02, 0x9D, 0x4B
+
 // Opus codec settings (only used when USE_OPUS_CODEC is defined)
 // 20 ms frames at 16 kHz -> 320 samples/frame. ~24 kbps mono VBR is a good
 // voice quality/bandwidth trade-off and keeps each packet well under the

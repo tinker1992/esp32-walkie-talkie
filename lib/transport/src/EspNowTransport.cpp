@@ -4,6 +4,7 @@
 #include <esp_wifi.h>
 #include "OutputBuffer.h"
 #include "EspNowTransport.h"
+#include "config.h"
 
 const int MAX_ESP_NOW_PACKET_SIZE = 250;
 const uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -51,6 +52,15 @@ bool EspNowTransport::begin()
   // this will broadcast a message to everyone in range
   esp_now_peer_info_t peerInfo = {};
   memcpy(&peerInfo.peer_addr, broadcastAddress, 6);
+#ifdef USE_ESP_NOW_LMK
+  // enable AES-128 link-layer encryption using a pre-shared Local Master Key
+  {
+    uint8_t esp_now_lmk[16] = {ESP_NOW_LMK};
+    memcpy(peerInfo.lmk, esp_now_lmk, 16);
+    peerInfo.encrypt = true;
+    Serial.println("ESP-NOW: LMK link encryption enabled");
+  }
+#endif
   if (!esp_now_is_peer_exist(broadcastAddress))
   {
     result = esp_now_add_peer(&peerInfo);
