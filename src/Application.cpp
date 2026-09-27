@@ -68,7 +68,15 @@ Application::Application()
 #endif
 
 #ifdef USE_ESP_NOW
-  m_transport = new EspNowTransport(m_output_buffer,ESP_NOW_WIFI_CHANNEL);
+  EspNowTransport *espnow_transport = new EspNowTransport(m_output_buffer, ESP_NOW_WIFI_CHANNEL);
+#ifdef USE_ESP_NOW_LMK
+  {
+    // 16-byte pre-shared key from config.h; src/config.h resolves correctly here
+    static const uint8_t lmk[16] = {ESP_NOW_LMK};
+    espnow_transport->set_lmk(lmk);
+  }
+#endif
+  m_transport = espnow_transport;
 #else
   m_transport = new UdpTransport(m_output_buffer);
 #endif

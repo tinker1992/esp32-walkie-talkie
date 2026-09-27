@@ -2,9 +2,9 @@
 #include <WiFi.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
+#include <string.h>
 #include "OutputBuffer.h"
 #include "EspNowTransport.h"
-#include "config.h"
 
 const int MAX_ESP_NOW_PACKET_SIZE = 250;
 const uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -17,8 +17,12 @@ void receiveCallback(const uint8_t *macAddr, const uint8_t *data, int dataLen)
   int header_size = instance->m_header_size;
   
   // first m_header_size bytes of m_buffer are the expected header
-  if ((dataLen > header_size) && (dataLen<=MAX_ESP_NOW_PACKET_SIZE) && (memcmp(data,instance->m_buffer,header_size) == 0)) 
+  if ((dataLen > header_size) && (dataLen<=MAX_ESP_NOW_PACKET_SIZE) && (memcmp(data,instance->m_buffer,header_size) == 0))
   {
+    // bring-up aid: throttled reception counter (1 line per 25 valid packets)
+    static uint32_t rx_pkt_count = 0;
+    if ((++rx_pkt_count % 25) == 1)
+      Serial.printf("[RX] valid packets=%u len=%d\n", (unsigned)rx_pkt_count, dataLen);
     if (instance->m_frame_rx)
     {
       // Opus path: hand the whole payload (minus header) to the frame receiver
@@ -52,15 +56,15 @@ bool EspNowTransport::begin()
   // this will broadcast a message to everyone in range
   esp_now_peer_info_t peerInfo = {};
   memcpy(&peerInfo.peer_addr, broadcastAddress, 6);
-#ifdef USE_ESP_NOW_LMK
-  // enable AES-128 link-layer encryption using a pre-shared Local Master Key
+  if (m_encrypt)
   {
-    uint8_t esp_now_lmk[16] = {ESP_NOW_LMK};
-    memcpy(peerInfo.lmk, esp_now_lmk, 16);
-    peerInfo.encrypt = true;
-    Serial.println("ESP-NOW: LMK link encryption enabled");
+    // ESP-NOW forbids encryption on multicast/broadcast peers
+    // (esp_now_add_peer returns ESP_ERR_ESPNOW_ARG and the peer is never
+    // registered, breaking all sends). LMK only works for unicast peers, so
+    // broadcast stays plaintext; real confidentiality needs app-layer crypto
+    // or a MAC-discovery + unicast-pairing step.
+    Serial.println("ESP-NOW: LMK ignored - encryption unsupported for broadcast (plaintext)");
   }
-#endif
   if (!esp_now_is_peer_exist(broadcastAddress))
   {
     result = esp_now_add_peer(&peerInfo);
@@ -75,8 +79,14 @@ bool EspNowTransport::begin()
 
 EspNowTransport::EspNowTransport(OutputBuffer *output_buffer, uint8_t wifi_channel) : Transport(output_buffer, MAX_ESP_NOW_PACKET_SIZE)
 {
-  instance = this;  
+  instance = this;
   m_wifi_channel = wifi_channel;
+}
+
+void EspNowTransport::set_lmk(const uint8_t *lmk)
+{
+  memcpy(m_lmk, lmk, 16);
+  m_encrypt = true;
 }
 
 void EspNowTransport::send()
