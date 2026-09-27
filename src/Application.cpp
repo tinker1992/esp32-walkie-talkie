@@ -19,8 +19,6 @@
 
 #ifdef USE_OLED_DISPLAY
 #include "WalkieDisplay.h"
-#include "RotaryEncoder.h"
-#include <string.h>
 #endif
 
 #ifdef ARDUINO_TINYPICO
@@ -85,8 +83,6 @@ Application::Application()
 
 #ifdef USE_OLED_DISPLAY
   m_display = new WalkieDisplay();
-  m_encoder = new RotaryEncoder();
-  m_ui_mac[0] = '\0';
   m_ui_level = 0;
 #endif
 
@@ -152,15 +148,7 @@ void Application::begin()
 #endif
 
 #ifdef USE_OLED_DISPLAY
-  m_encoder->begin(ENC_PIN_A, ENC_PIN_B);
   analogSetPinAttenuation(BATT_ADC_PIN, ADC_11db);
-  {
-    String mac = WiFi.macAddress(); // "AA:BB:CC:DD:EE:FF"
-    int n = mac.length();
-    if (n >= 8)
-      strncpy(m_ui_mac, mac.c_str() + (n - 8), 8); // keep "DD:EE:FF"
-    m_ui_mac[8] = '\0';
-  }
   m_display->begin(OLED_I2C_SDA, OLED_I2C_SCL, OLED_I2C_ADDR);
 #endif
 
@@ -274,13 +262,6 @@ void Application::ui_service(bool transmitting, uint32_t tx_start_ms, const int1
   if (!m_display)
     return;
 
-  // poll the encoder on every call (cheap), redraw the OLED at ~10 Hz
-  int d = m_encoder->read();
-  if (d > 0)
-    m_display->nextPage();
-  else if (d < 0)
-    m_display->prevPage();
-
   int lvl = peak_level(samples, count);
   m_ui_level = (m_ui_level + lvl) / 2; // light smoothing
 
@@ -306,7 +287,6 @@ void Application::ui_service(bool transmitting, uint32_t tx_start_ms, const int1
 #else
   m.codec = "PCM 8bit";
 #endif
-  m.mac = m_ui_mac;
 
   int mv = (int)(analogReadMilliVolts(BATT_ADC_PIN) * BATT_DIVIDER);
   int pct = (mv - BATT_MV_EMPTY) * 100 / (BATT_MV_FULL - BATT_MV_EMPTY);

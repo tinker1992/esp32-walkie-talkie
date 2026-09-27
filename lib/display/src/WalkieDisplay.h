@@ -6,8 +6,7 @@
 #include <stdint.h>
 
 // Dependency-free SSD1306 (128x64, I2C, page addressing) driver for the walkie
-// UI. Keeps a 1 KB framebuffer, draws with a built-in 5x7 ASCII font + box
-// primitives, and flushes over Wire. No external graphics library needed.
+// UI. Experiment phase: a single dashboard page - no page navigation.
 class WalkieDisplay
 {
 public:
@@ -20,16 +19,10 @@ public:
   bool begin(uint8_t sda, uint8_t scl, uint8_t addr);
   void showBoot();
 
-  void nextPage();
-  void prevPage();
-  DisplayPage page() const { return m_page; }
-
   void render(const DisplayModel &model);
 
 private:
-  void draw_rx(const DisplayModel &m);
-  void draw_tx(const DisplayModel &m);
-  void draw_status(const DisplayModel &m);
+  void draw_dashboard(const DisplayModel &m);
 
   // framebuffer primitives (coords: x 0..127, y 0..63)
   void clear();
@@ -39,7 +32,6 @@ private:
   void text(int x, int y, const char *s); // y = top of the 8px cell
   int  textw(const char *s);
   void rtext(int y, const char *s);       // right-aligned
-  void bars(int x, int y, int segs, int filled, int w, int h, int gap);
   void vu(int x, int y, int level);
   void battery(int x, int y, int pct);
   void flush();
@@ -48,7 +40,6 @@ private:
   uint8_t *m_fb;         // 1024-byte display buffer
   uint8_t m_addr;        // SSD1306 I2C address
   bool m_ready;
-  DisplayPage m_page;
   uint32_t m_boot_until_ms;
 };
 

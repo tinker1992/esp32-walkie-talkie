@@ -12,7 +12,6 @@ class OpusStream;
 #endif
 #ifdef USE_OLED_DISPLAY
 class WalkieDisplay;
-class RotaryEncoder;
 #endif
 
 class Application
@@ -28,8 +27,6 @@ private:
 #endif
 #ifdef USE_OLED_DISPLAY
   WalkieDisplay *m_display;
-  RotaryEncoder *m_encoder;
-  char m_ui_mac[9];
   int m_ui_level;
   void ui_service(bool transmitting, uint32_t tx_start_ms, const int16_t *samples, int count);
 #endif

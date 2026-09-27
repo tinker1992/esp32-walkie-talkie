@@ -54,14 +54,12 @@
 // transmit (push-to-talk) button
 #define GPIO_TRANSMIT_BUTTON 1
 
-// --- ESP32-S3 add-on pins: SSD1306 (I2C) + rotary encoder + battery ADC ---
+// --- ESP32-S3 add-on pins: SSD1306 (I2C) + battery ADC ---
+// (rotary encoder removed for the experiment phase; GPIO12/13/14 are free)
 // These are only used when USE_OLED_DISPLAY is defined ([env:esp32s3] only).
 #define OLED_I2C_SDA GPIO_NUM_8
 #define OLED_I2C_SCL GPIO_NUM_9
 #define OLED_I2C_ADDR 0x3C
-#define ENC_PIN_A 12        // rotary encoder phase A
-#define ENC_PIN_B 14        // rotary encoder phase B
-#define ENC_PIN_SW 13       // encoder push button (optional action)
 #define BATT_ADC_PIN GPIO_NUM_10   // battery via resistor divider -> ADC1
 #define BATT_DIVIDER 2.0f   // battery_mv = adc_mv * divider
 #define BATT_MV_EMPTY 3300  // LiPo ~0%

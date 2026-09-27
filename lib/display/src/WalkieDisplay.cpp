@@ -14,7 +14,7 @@ static const int DISP_H = 64;
 static inline int clampi(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
 WalkieDisplay::WalkieDisplay()
-    : m_fb(nullptr), m_addr(0x3C), m_ready(false), m_page(PAGE_RX), m_boot_until_ms(0) {}
+    : m_fb(nullptr), m_addr(0x3C), m_ready(false), m_boot_until_ms(0) {}
 
 WalkieDisplay::~WalkieDisplay()
 {
@@ -133,12 +133,6 @@ int WalkieDisplay::textw(const char *s) { return (int)strlen(s) * 6 - 1; }
 
 void WalkieDisplay::rtext(int y, const char *s) { text(DISP_W - 1 - textw(s), y, s); }
 
-void WalkieDisplay::bars(int x, int y, int segs, int filled, int w, int h, int gap)
-{
-  for (int i = 0; i < segs; i++)
-    box(x + i * (w + gap), y, w, h, i < filled);
-}
-
 void WalkieDisplay::vu(int x, int base_y, int level)
 {
   const int n = 10, bw = 4, gap = 2, maxh = 16;
@@ -159,7 +153,7 @@ void WalkieDisplay::battery(int x, int y, int pct)
     box(x + 1, y + 1, (22 * clampi(pct, 0, 100)) / 100, 8, true);
 }
 
-// ---- boot + paging ----
+// ---- boot + single dashboard page ----
 
 void WalkieDisplay::showBoot()
 {
@@ -176,20 +170,6 @@ void WalkieDisplay::showBoot()
   m_boot_until_ms = millis() + 3000;
 }
 
-void WalkieDisplay::nextPage()
-{
-  if (millis() < m_boot_until_ms) return;
-  m_page = (DisplayPage)((m_page + 1) % PAGE_COUNT);
-}
-
-void WalkieDisplay::prevPage()
-{
-  if (millis() < m_boot_until_ms) return;
-  m_page = (DisplayPage)((m_page + PAGE_COUNT - 1) % PAGE_COUNT);
-}
-
-// ---- pages ----
-
 void WalkieDisplay::render(const DisplayModel &m)
 {
   if (!m_ready)
@@ -200,75 +180,46 @@ void WalkieDisplay::render(const DisplayModel &m)
     return;
   }
   clear();
-  if (m.transmitting) draw_tx(m);
-  else if (m_page == PAGE_STATUS) draw_status(m);
-  else draw_rx(m);
+  draw_dashboard(m);
   flush();
 }
 
-void WalkieDisplay::draw_rx(const DisplayModel &m)
+void WalkieDisplay::draw_dashboard(const DisplayModel &m)
 {
-  box(0, 1, 6, 6, true); // activity dot
-  text(9, 0, "RX");
-  char tail[24];
-  snprintf(tail, sizeof(tail), "%s CH%d", m.callsign, m.channel);
-  rtext(0, tail);
+  // header: mode dot + RX/TX (with talk timer), callsign/channel right
+  box(0, 1, 6, 6, true);
+  char head[28];
+  if (m.transmitting)
+  {
+    text(9, 0, "TX");
+    int mm = (int)(m.tx_seconds / 60), ss = (int)(m.tx_seconds % 60);
+    snprintf(head, sizeof(head), "%s %02d:%02d", m.callsign, mm, ss);
+  }
+  else
+  {
+    text(9, 0, "RX");
+    snprintf(head, sizeof(head), "%s CH%d", m.callsign, m.channel);
+  }
+  rtext(0, head);
   hline(0, 11, 128);
 
-  text(0, 15, "sig");
-  bars(24, 16, 5, m.rx_active ? 5 : 1, 4, 5, 1);
-  rtext(15, m.encrypted ? "AES ON" : "AES off");
+  // level meter (mic input while transmitting, output level otherwise)
+  text(0, 28, "LVL");
+  vu(34, 36, m.level);
 
-  text(0, 27, "bat");
-  battery(24, 26, m.battery_pct);
+  // battery + encryption
+  text(0, 44, "bat");
+  battery(24, 42, m.battery_pct);
   if (m.battery_pct >= 0)
   {
     char b[8];
     snprintf(b, sizeof(b), "%d%%", m.battery_pct);
-    text(54, 27, b);
+    text(54, 44, b);
   }
+  rtext(44, m.encrypted ? "AES ON" : "AES off");
 
-  if (m.rx_active)
-  {
-    text(0, 44, "in");
-    vu(24, 60, m.level);
-  }
-  else
-  {
-    text(0, 50, "listening...");
-  }
-}
-
-void WalkieDisplay::draw_tx(const DisplayModel &m)
-{
-  box(0, 1, 6, 6, true);
-  text(9, 0, "TX");
-  char head[28];
-  int mm = (int)(m.tx_seconds / 60), ss = (int)(m.tx_seconds % 60);
-  snprintf(head, sizeof(head), "%s %02d:%02d", m.callsign, mm, ss);
-  rtext(0, head);
-  hline(0, 11, 128);
-
-  text(0, 16, "MIC");
-  vu(30, 50, m.level);
-
-  text(0, 55, m.codec);
-  rtext(55, m.encrypted ? "AES ON" : "AES off");
-}
-
-void WalkieDisplay::draw_status(const DisplayModel &m)
-{
-  text(0, 0, "STATUS");
-  rtext(0, m_page == PAGE_STATUS ? "p2/2" : "p1/2");
-  hline(0, 11, 128);
-  text(0, 16, m.codec);
-  char line[24];
-  snprintf(line, sizeof(line), "xport ESPNOW");
-  text(0, 27, line);
-  text(0, 38, m.encrypted ? "enc AES128 LMK" : "enc none");
-  char mac[20];
-  snprintf(mac, sizeof(mac), "mac %s", m.mac);
-  text(0, 49, mac);
+  // codec line
+  text(0, 56, m.codec);
 }
 
 #endif // USE_OLED_DISPLAY
