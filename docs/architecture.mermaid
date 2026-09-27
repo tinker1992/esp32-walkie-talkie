@@ -1,0 +1,59 @@
+%%{init: {'flowchart': {'curve': 'basis'}, 'themeVariables': {'fontSize': '14px'}}}%%
+flowchart TB
+    subgraph CFG["⚙️ 编译期配置 — src/config.h · platformio.ini (选哪个实现就改宏)"]
+        direction LR
+        C1["USE_ESP_NOW ↔ UDP 广播"]
+        C2["USE_I2S_MIC_INPUT ↔ ADC 模拟麦"]
+        C3["USE_I2S_SPEAKER_OUTPUT ↔ DAC"]
+    end
+
+    subgraph CORE["🧠 应用层 src/"]
+        MAIN["main.cpp<br/>setup() → Application::begin()"]
+        APP["Application · application_task (FreeRTOS)<br/>半双工状态机：发射 ⟷ 接收"]
+        MAIN --> APP
+    end
+
+    subgraph TX["📤 发射链路 (按住发射键时)"]
+        direction LR
+        MIC["🎤 I2S 麦克风<br/>GPIO 18 / 19 / 21"]
+        IN["audio_input<br/>I2SMEMSSampler / ADCSampler<br/>读 16-bit PCM × 128"]
+        TR["transport · Transport::add_sample<br/>16→8 bit 压缩 · 攒满一包 → send()"]
+        MIC --> IN --> TR
+    end
+
+    AIR{{"📡 无线信道<br/>ESP-NOW 广播 (250 B / 无需 WiFi, ch1)<br/>UDP 广播 (1436 B / 需连 WiFi)"}}
+
+    subgraph RX["📥 接收链路 (松开按键时)"]
+        direction LR
+        CB["Transport 收包回调<br/>esp_now_recv / AsyncUDP onPacket<br/>剥包头 → add_samples (8-bit)"]
+        OBUF["OutputBuffer<br/>环形 · 抖动缓冲 · 信号量加锁<br/>攒够才播 · 8-bit→16-bit 还原"]
+        OUT["audio_output<br/>I2SOutput / DACOutput<br/>write 16-bit PCM × 128"]
+        SPK["🔊 I2S 喇叭<br/>GPIO 18 / 19 / 5 (SD 22)"]
+        CB --> OBUF --> OUT --> SPK
+    end
+
+    BTN["🔘 发射键 GPIO23"]
+    LED["💡 状态灯<br/>红闪 = 连接中 / 发射<br/>绿常亮 = 待机"]
+
+    APP -.->|"读按键"| BTN
+    APP -->|"发射模式：开麦→送包"| IN
+    APP -->|"接收模式：取缓冲→播放"| OUT
+    APP --> LED
+
+    TR ==> AIR ==> CB
+
+    CFG -.-> C1 -.-> APP
+    CFG -.-> APP
+
+    classDef cfg fill:#fff3cd,stroke:#e0a800,color:#663c00;
+    classDef core fill:#e2ecff,stroke:#4a6fb5,color:#1a2f5a;
+    classDef tx fill:#e0f5e9,stroke:#3a9e63,color:#1c5e3a;
+    classDef rx fill:#ede0f5,stroke:#8e4ab5,color:#4a1c5e;
+    classDef air fill:#ffe0e0,stroke:#d9534f,color:#7a1f1d;
+    classDef hw fill:#f0f0f0,stroke:#888,color:#333;
+    class C1,C2,C3 cfg;
+    class MAIN,APP core;
+    class MIC,IN,TR tx;
+    class CB,OBUF,OUT,SPK rx;
+    class AIR air;
+    class BTN,LED hw;

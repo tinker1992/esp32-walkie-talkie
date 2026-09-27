@@ -1,0 +1,77 @@
+
+```mermaid
+%%{init: {'flowchart': {'curve': 'linear', 'nodeSpacing': 45, 'rankSpacing': 90}, 'themeVariables': {'fontSize': '13px'}}}%%
+flowchart LR
+  %% ===== ESP32-S3 主控 =====
+  subgraph S3["ESP32-S3 (N16R8)"]
+    direction TB
+    g15["GPIO15"]; g16["GPIO16"]; g17["GPIO17"]
+    g4["GPIO4"]; g5["GPIO5"]; g6["GPIO6"]
+    g8["GPIO8"]; g9["GPIO9"]
+    g1["GPIO1"]; g10["GPIO10"]
+    v33(["3V3"]); v5(["5V / VIN"]); ggnd(["GND"])
+  end
+
+  %% ===== INMP441 麦克风 (I2S0) =====
+  subgraph MIC["INMP441 麦克风"]
+    direction TB
+    mSCK["SCK"]; mWS["WS"]; mSD["SD"]; mLR["L/R"]; mVCC["VCC"]; mG["GND"]
+  end
+  g15 -->|SCK| mSCK
+  g16 -->|WS| mWS
+  g17 -->|SD| mSD
+  mLR -->|接地=左声道| ggnd
+  mVCC --> v33
+  mG --> ggnd
+
+  %% ===== MAX98357 功放 (I2S1) + 喇叭 =====
+  subgraph AMP["MAX98357 I2S 功放"]
+    direction TB
+    aBCLK["BCLK"]; aLRC["LRC"]; aDIN["DIN"]; aSD["SD"]; aVIN["VIN"]; aG["GND"]
+  end
+  spk(["4Ω 喇叭"])
+  g4 -->|BCLK| aBCLK
+  g5 -->|LRC| aLRC
+  g6 -->|DIN| aDIN
+  aSD -.->|本固件未用| aSD
+  aVIN --> v5
+  aG --> ggnd
+  AMP -->|OUT+ / OUT-| spk
+
+  %% ===== SSD1306 OLED (I2C) =====
+  subgraph OLED["SSD1306 0.96 OLED"]
+    direction TB
+    oSDA["SDA"]; oSCL["SCL"]; oVCC["VCC"]; oG["GND"]
+  end
+  g8 -->|SDA| oSDA
+  g9 -->|SCL| oSCL
+  oVCC --> v33
+  oG --> ggnd
+
+  %% ===== 旋转编码器已移除（GPIO12/13/14 空闲） =====
+
+  %% ===== PTT 发射键 =====
+  btn(["PTT 按键"])
+  g1 --> btn
+  btn -->|"高电平有效 接3V3"| v33
+
+  %% ===== 电池分压 =====
+  BAT(["电池 +"])
+  R1["R_top"]
+  ADVN["ADC 采样点 ≤3.3V"]
+  R2["R_bot"]
+  BAT --> R1 --> ADVN --> R2 --> ggnd
+  ADVN --> g10
+
+  %% ===== 配色 =====
+  classDef s3 fill:#e2ecff,stroke:#4a6fb5,color:#1a2f5a;
+  classDef mic fill:#e0f5e9,stroke:#3a9e63,color:#1c5e3a;
+  classDef amp fill:#fff0e0,stroke:#d98a2b,color:#7a4a10;
+  classDef oled fill:#efe0f5,stroke:#8e4ab5,color:#4a1c5e;
+  classDef pwr fill:#f0f0f0,stroke:#888,color:#333;
+  class g15,g16,g17,g4,g5,g6,g8,g9,g12,g14,g13,g1,g10 s3;
+  class mSCK,mWS,mSD,mLR,mVCC,mG mic;
+  class aBCLK,aLRC,aDIN,aSD,aVIN,aG,spk amp;
+  class oSDA,oSCL,oVCC,oG oled;
+  class v33,v5,ggnd,BAT,R1,R2,ADVN,btn pwr;
+```
