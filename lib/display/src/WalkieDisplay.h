@@ -22,6 +22,7 @@ public:
   void render(const DisplayModel &model);
 
 private:
+  void draw_splash(); // draws the boot screen, no side effects
   void draw_dashboard(const DisplayModel &m);
 
   // framebuffer primitives (coords: x 0..127, y 0..63)

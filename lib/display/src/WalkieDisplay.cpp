@@ -159,6 +159,14 @@ void WalkieDisplay::showBoot()
 {
   if (!m_ready)
     return;
+  draw_splash();
+  m_boot_until_ms = millis() + 3000; // arm once, here only
+}
+
+// just paints the splash - must NOT re-arm the boot timer, otherwise render()
+// (called every ~100 ms) would keep the boot screen alive forever
+void WalkieDisplay::draw_splash()
+{
   clear();
   text(0, 2, "S3 WALKIE");
   hline(0, 12, 84);
@@ -167,7 +175,6 @@ void WalkieDisplay::showBoot()
   text(0, 40, "+ OLED SSD1306");
   text(0, 52, "starting...");
   flush();
-  m_boot_until_ms = millis() + 3000;
 }
 
 void WalkieDisplay::render(const DisplayModel &m)
@@ -176,7 +183,7 @@ void WalkieDisplay::render(const DisplayModel &m)
     return;
   if (millis() < m_boot_until_ms)
   {
-    showBoot();
+    draw_splash(); // repaint splash WITHOUT re-arming the boot timer
     return;
   }
   clear();
