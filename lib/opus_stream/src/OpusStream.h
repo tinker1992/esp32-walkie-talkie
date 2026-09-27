@@ -66,6 +66,17 @@ private:
   uint8_t *m_tx_packet;
   int m_tx_packet_max;
 
+  // TX sequence numbering (lets the RX detect lost packets and run PLC)
+  uint8_t m_tx_seq;
+
+  // DC blocker state (one-pole high-pass on the mic input)
+  int32_t m_dc_x_prev;
+  int32_t m_dc_y_prev;
+
+  // RX sync state for gap detection
+  uint8_t m_rx_expected;
+  bool m_rx_synced;
+
   sender_fn m_sender = nullptr;
   void *m_sender_ctx = nullptr;
 

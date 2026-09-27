@@ -30,6 +30,10 @@ OpusStream::OpusStream(int sample_rate, int frame_ms, int bitrate, int complexit
   m_enc = nullptr;
   m_dec = nullptr;
   m_tx_packet_max = MAX_PACKET_BYTES;
+  m_tx_seq = 0;
+  m_dc_x_prev = m_dc_y_prev = 0;
+  m_rx_expected = 0;
+  m_rx_synced = false;
 }
 
 OpusStream::~OpusStream()
@@ -96,16 +100,28 @@ void OpusStream::write_pcm(const int16_t *samples, int count)
   {
     int room = m_frame_samples - m_tx_fill;
     int take = (count - i < room) ? (count - i) : room;
-    memcpy(m_tx_frame + m_tx_fill, samples + i, take * sizeof(int16_t));
+    // one-pole DC blocker (~80 Hz @ 16 kHz): removes the INMP441's DC offset
+    // so it doesn't waste codec headroom / cause asymmetric clipping
+    for (int k = 0; k < take; k++)
+    {
+      int32_t x = samples[i + k];
+      int32_t y = x - m_dc_x_prev + ((m_dc_y_prev * 31747) >> 15);
+      m_dc_x_prev = x;
+      m_dc_y_prev = y;
+      if (y > 32767) y = 32767;
+      if (y < -32768) y = -32768;
+      m_tx_frame[m_tx_fill + k] = (int16_t)y;
+    }
     m_tx_fill += take;
     i += take;
     if (m_tx_fill == m_frame_samples)
     {
+      m_tx_packet[0] = m_tx_seq++; // sequence byte for RX gap detection / PLC
       int enc_len = opus_encode((OpusEncoder *)m_enc, m_tx_frame, m_frame_samples,
-                                m_tx_packet, m_tx_packet_max);
+                                m_tx_packet + 1, m_tx_packet_max - 1);
       m_tx_fill = 0;
       if (enc_len > 0 && m_sender)
-        m_sender(m_tx_packet, enc_len, m_sender_ctx);
+        m_sender(m_tx_packet, enc_len + 1, m_sender_ctx);
       else if (enc_len < 0)
         Serial.printf("Opus: encode error %d\n", enc_len);
     }
@@ -117,11 +133,12 @@ void OpusStream::flush()
   if (m_tx_fill > 0)
   {
     memset(m_tx_frame + m_tx_fill, 0, (m_frame_samples - m_tx_fill) * sizeof(int16_t));
+    m_tx_packet[0] = m_tx_seq++;
     int enc_len = opus_encode((OpusEncoder *)m_enc, m_tx_frame, m_frame_samples,
-                              m_tx_packet, m_tx_packet_max);
+                              m_tx_packet + 1, m_tx_packet_max - 1);
     m_tx_fill = 0;
     if (enc_len > 0 && m_sender)
-      m_sender(m_tx_packet, enc_len, m_sender_ctx);
+      m_sender(m_tx_packet, enc_len + 1, m_sender_ctx);
   }
 }
 
@@ -194,7 +211,9 @@ int OpusStream::read_pcm(int16_t *samples, int count)
     return count;
   }
 
-  // refill the decoded ring by pulling + decoding whole packets
+  // refill the decoded ring by pulling + decoding whole packets. Keep ~2 full
+  // frames buffered beyond the drain amount so packet arrival jitter doesn't
+  // underrun the speaker (audible crackle).
   int scratch_cap = m_sample_rate * 12 / 100 + 64;
   for (;;)
   {
@@ -202,13 +221,35 @@ int OpusStream::read_pcm(int16_t *samples, int count)
     xSemaphoreTake(m_lock, portMAX_DELAY);
     used = m_rx_pcm_used;
     xSemaphoreGive(m_lock);
-    if (used >= count)
+    if (used >= count + 2 * m_frame_samples)
       break;
     uint8_t pkt[MAX_PACKET_BYTES];
     int plen;
     if (!pull_encoded(pkt, MAX_PACKET_BYTES, plen))
       break; // nothing (more) to decode
-    int n = opus_decode((OpusDecoder *)m_dec, pkt, plen, m_decode_scratch, scratch_cap, 0);
+    if (plen < 2)
+      continue; // malformed
+    // gap detection via the 1-byte sequence number
+    int gap = 0;
+    if (!m_rx_synced)
+    {
+      m_rx_synced = true;
+      m_rx_expected = pkt[0];
+    }
+    else
+    {
+      gap = (uint8_t)(pkt[0] - m_rx_expected);
+    }
+    m_rx_expected = (uint8_t)(pkt[0] + 1);
+    // conceal short losses with Opus PLC instead of dropping to silence
+    if (gap > 0 && gap <= 5)
+      for (int g = 0; g < gap; g++)
+      {
+        int pn = opus_decode((OpusDecoder *)m_dec, NULL, 0, m_decode_scratch, scratch_cap, 0);
+        if (pn > 0)
+          push_pcm(m_decode_scratch, pn);
+      }
+    int n = opus_decode((OpusDecoder *)m_dec, pkt + 1, plen - 1, m_decode_scratch, scratch_cap, 0);
     if (n > 0)
       push_pcm(m_decode_scratch, n);
   }
