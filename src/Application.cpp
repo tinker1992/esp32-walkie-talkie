@@ -149,7 +149,7 @@ void Application::begin()
 
 #ifdef USE_OLED_DISPLAY
   analogSetPinAttenuation(BATT_ADC_PIN, ADC_11db);
-  m_display->begin(OLED_I2C_SDA, OLED_I2C_SCL, OLED_I2C_ADDR);
+  m_display->begin(OLED_I2C_SDA, OLED_I2C_SCL, OLED_I2C_ADDR, OLED_COL_OFFSET);
 #endif
 
   // start the main task for the application (bigger stack for Opus decode)

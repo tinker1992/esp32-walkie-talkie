@@ -60,6 +60,10 @@
 #define OLED_I2C_SDA GPIO_NUM_8
 #define OLED_I2C_SCL GPIO_NUM_9
 #define OLED_I2C_ADDR 0x3C
+// CH1116-compatible clones have 132 columns of RAM with the visible window
+// shifted by 2, which leaves stray dots on the right edge. 2 fixes those;
+// set 0 for a genuine SSD1306 if the left edge ever shows garbage instead.
+#define OLED_COL_OFFSET 2
 #define BATT_ADC_PIN GPIO_NUM_10   // battery via resistor divider -> ADC1
 #define BATT_DIVIDER 2.0f   // battery_mv = adc_mv * divider
 #define BATT_MV_EMPTY 3300  // LiPo ~0%

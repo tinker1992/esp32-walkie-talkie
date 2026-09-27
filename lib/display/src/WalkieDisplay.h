@@ -16,7 +16,10 @@ public:
   // I2C pins + 7-bit address are supplied by the application so this module
   // stays independent of the project's config.h (which would otherwise collide
   // with an unrelated "config.h" shipped by another library).
-  bool begin(uint8_t sda, uint8_t scl, uint8_t addr);
+  // col_offset shifts the 128-byte page writes by that many RAM columns; use 2
+  // for CH1116-compatible modules (132-col RAM, visible window shifted by 2),
+  // 0 for genuine SSD1306.
+  bool begin(uint8_t sda, uint8_t scl, uint8_t addr, uint8_t col_offset = 2);
   void showBoot();
 
   void render(const DisplayModel &model);
@@ -40,6 +43,7 @@ private:
 
   uint8_t *m_fb;         // 1024-byte display buffer
   uint8_t m_addr;        // SSD1306 I2C address
+  uint8_t m_col_offset;  // RAM column start (2 for CH1116 clones, 0 for SSD1306)
   bool m_ready;
   uint32_t m_boot_until_ms;
 };

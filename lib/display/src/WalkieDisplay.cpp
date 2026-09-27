@@ -14,7 +14,7 @@ static const int DISP_H = 64;
 static inline int clampi(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
 WalkieDisplay::WalkieDisplay()
-    : m_fb(nullptr), m_addr(0x3C), m_ready(false), m_boot_until_ms(0) {}
+    : m_fb(nullptr), m_addr(0x3C), m_col_offset(0), m_ready(false), m_boot_until_ms(0) {}
 
 WalkieDisplay::~WalkieDisplay()
 {
@@ -29,9 +29,10 @@ void WalkieDisplay::cmd(uint8_t c)
   Wire.endTransmission();
 }
 
-bool WalkieDisplay::begin(uint8_t sda, uint8_t scl, uint8_t addr)
+bool WalkieDisplay::begin(uint8_t sda, uint8_t scl, uint8_t addr, uint8_t col_offset)
 {
   m_addr = addr;
+  m_col_offset = col_offset;
   Wire.begin(sda, scl);
   Wire.setClock(400000);
 
@@ -70,8 +71,11 @@ void WalkieDisplay::flush()
   for (int page = 0; page < 8; page++)
   {
     cmd(0xB0 | page);
-    cmd(0x00); // lower column start
-    cmd(0x10); // upper column start
+    // column start with the module's RAM offset (CH1116 clones need +2 so the
+    // 128 written bytes cover the visible window and the right-edge stray
+    // columns get cleared)
+    cmd(0x00 | (m_col_offset & 0x0F));
+    cmd(0x10 | ((m_col_offset >> 4) & 0x07));
     Wire.beginTransmission(m_addr);
     Wire.write((uint8_t)0x40); // Co=0, D/C=1 -> data
     for (int x = 0; x < DISP_W; x++)
