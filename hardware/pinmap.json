@@ -1,0 +1,41 @@
+{
+  "source_of_truth": "src/config.h (CONFIG_IDF_TARGET_ESP32S3 branch)",
+  "board": "ESP32-S3-WROOM-1-N16R8 (dev boards: DevKitC-1 x2)",
+  "identities": {
+    "board1": { "oled": true, "ch343_serial": "5C93065295", "mac": "EC:DA:3B:4D:56:34" },
+    "board2": { "oled": false, "ch343_serial": "5C93083344", "mac": "CC:BA:97:0C:38:C4" }
+  },
+  "used_pins": {
+    "GPIO1":  { "func": "PTT button", "dir": "input", "note": "INPUT_PULLDOWN, button to 3V3 (active HIGH)" },
+    "GPIO4":  { "func": "I2S1 BCLK -> MAX98357", "dir": "output" },
+    "GPIO5":  { "func": "I2S1 LRC  -> MAX98357", "dir": "output" },
+    "GPIO6":  { "func": "I2S1 DIN  -> MAX98357", "dir": "output" },
+    "GPIO8":  { "func": "I2C SDA -> SSD1306", "dir": "od" },
+    "GPIO9":  { "func": "I2C SCL -> SSD1306", "dir": "output" },
+    "GPIO10": { "func": "ADC1_CH9 battery divider", "dir": "input", "note": "100k/100k + 100nF, divider x2" },
+    "GPIO15": { "func": "I2S0 SCK -> INMP441", "dir": "output" },
+    "GPIO16": { "func": "I2S0 WS  -> INMP441", "dir": "output" },
+    "GPIO17": { "func": "I2S0 SD  -> INMP441", "dir": "input" },
+    "GPIO2":  { "func": "status LED (generic fallback)", "dir": "output" }
+  },
+  "reserved_optional": {
+    "GPIO7": { "func": "MAX98357 SHDN mute", "status": "wired-in-plan, firmware not enabled yet" },
+    "GPIO12": { "func": "free (was encoder A)" },
+    "GPIO13": { "func": "free (was encoder SW)" },
+    "GPIO14": { "func": "free (was encoder B)" },
+    "GPIO18": { "func": "free" },
+    "GPIO21": { "func": "free" },
+    "GPIO47_48": { "func": "onboard WS2812 LED (DevKitC-1)" }
+  },
+  "forbidden": {
+    "GPIO26-32": "SPI flash",
+    "GPIO33-37": "octal PSRAM (N16R8)",
+    "GPIO19-20": "native USB D-/D+",
+    "GPIO0_3_45_46": "strapping pins"
+  },
+  "wire_format": {
+    "transport": "ESP-NOW broadcast, channel 1, plaintext (broadcast encryption unsupported)",
+    "packet": "[1-byte seq][Opus 20ms frame @16kHz mono ~24kbps VBR]",
+    "compat": "both units MUST run identical firmware"
+  }
+}

@@ -1,0 +1,18 @@
+Designator,Part,Package,Qty,Role,Notes
+U1,ESP32-S3-WROOM-1-N16R8,Module,1,主控,16MB flash+8MB octal PSRAM；开发阶段可用 DevKitC-1 板替代
+U2,INMP441,Module,1,I2S 麦克风,L/R 接 GND（左声道）
+U3,MAX98357A,Module,1,I2S 功放（D类）,VIN=5V；GAIN 悬空=15dB 建议 9-12dB；SD 暂不接（预留 GPIO7 静音）
+U4,SSD1306 0.96in OLED 128x64 I2C,Module,1,显示,真 SSD1306（非 CH1116）；地址 0x3C
+LS1,4ohm 喇叭 1W,Through hole,1,发声,接 U3 OUT+/OUT-
+SW1,轻触开关,6x6 tactile,1,PTT 发射键,GPIO1 ↔ 3V3（高电平有效）
+R1,100k,0603,1,电池分压上臂,BAT+ → R1 → ADC 节点
+R2,100k,0603,1,电池分压下臂,ADC 节点 → R2 → GND
+C1,100nF X7R,0603,1,ADC 滤波,ADC 节点 → GND
+C2,100nF X7R,0603,1,U2 去耦,INMP441 VCC-GND 就近
+C3,100nF X7R,0603,1,U3 去耦,MAX98357 VIN-GND 就近
+C4,100nF X7R,0603,1,U4 去耦,OLED VCC-GND 就近
+C5,470uF/10V,电解或钽,1,U3 储能,防发声电流尖峰拉垮供电（brownout）
+C6,10uF,0805,1,3V3 bulk,U1 3V3 输出端
+F1,PTC 500mA,1812,1,电池保险,可选但强烈建议
+J1,USB-C 或电池座,-,1,供电,5V 输入 ≥500mA
+J2,2x4 排针,-,1,调试 UART,预留 U0TXD/U0RXD（烧录/日志）
